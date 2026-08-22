@@ -1,0 +1,71 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title: string;
+  description?: string;
+  noindex?: boolean;
+}
+
+const { title, description, noindex = false } = Astro.props;
+
+// 靜態站台的資料是建置當下從登記簿抓的快照，把時間標出來，
+// 查驗者才知道自己看到的是多新的資料。
+const builtAt = new Intl.DateTimeFormat('sv-SE', {
+  timeZone: 'Asia/Taipei',
+  dateStyle: 'short',
+  timeStyle: 'short',
+}).format(new Date());
+---
+
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    {description && <meta name="description" content={description} />}
+    {noindex && <meta name="robots" content="noindex" />}
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <meta
+      name="theme-color"
+      content="#f4f4f5"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#08080a"
+      media="(prefers-color-scheme: dark)"
+    />
+    <meta name="generator" content={Astro.generator} />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="wordmark" href="/">
+        <img
+          class="wordmark__logo"
+          src="/scaict-logo.png"
+          alt="SCAICT"
+          width="480"
+          height="134"
+        />
+        <span class="wordmark__rule" aria-hidden="true"></span>
+        <span class="wordmark__text">證書查驗</span>
+      </a>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        SCAICT 中部高中電資社團聯合會議
+        <span class="sep">·</span>
+        <a href="https://scaict.org">官方網站</a>
+      </div>
+      <div>登記簿資料更新於 {builtAt}（台北時間）</div>
+    </footer>
+  </body>
+</html>

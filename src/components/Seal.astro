@@ -1,0 +1,58 @@
+---
+// 狀態印章：外圈實線＋內圈點狀圈（模擬鋼印邊緣），中心依狀態換符號。
+// 顏色一律用 currentColor，由外層 .cert--{status} 決定，元件本身不綁死配色。
+import type { CertificateStatus } from '../lib/types';
+
+interface Props {
+  status: CertificateStatus | 'unknown';
+  size?: number;
+  class?: string;
+}
+
+const { status, size = 56, class: className } = Astro.props;
+
+const MARKS: Record<Props['status'], string> = {
+  valid: 'M18.5 28.5 L25 35 L37.5 21.5',
+  void: 'M20.5 20.5 L35.5 35.5 M35.5 20.5 L20.5 35.5',
+  reissued: 'M19 28 H36 M30 22 L36.5 28 L30 34',
+  unknown: 'M22.5 23.5A5.5 5.5 0 1 1 28 29V32',
+};
+---
+
+<svg
+  class:list={['seal', className]}
+  width={size}
+  height={size}
+  viewBox="0 0 56 56"
+  fill="none"
+  aria-hidden="true"
+>
+  <circle cx="28" cy="28" r="27" fill="currentColor" opacity="0.08"></circle>
+  <circle
+    cx="28"
+    cy="28"
+    r="26"
+    stroke="currentColor"
+    stroke-width="1.5"
+    opacity="0.35"></circle>
+  <circle
+    cx="28"
+    cy="28"
+    r="21.5"
+    stroke="currentColor"
+    stroke-width="1.5"
+    stroke-dasharray="0.5 4"
+    stroke-linecap="round"
+    opacity="0.6"></circle>
+  <path
+    d={MARKS[status]}
+    stroke="currentColor"
+    stroke-width="3"
+    stroke-linecap="round"
+    stroke-linejoin="round"></path>
+  {
+    status === 'unknown' && (
+      <circle cx="28" cy="36.5" r="1.75" fill="currentColor" />
+    )
+  }
+</svg>

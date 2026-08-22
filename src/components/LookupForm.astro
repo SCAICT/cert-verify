@@ -1,0 +1,64 @@
+---
+interface Props {
+  autofocus?: boolean;
+}
+
+const { autofocus = false } = Astro.props;
+---
+
+<div>
+  <form class="lookup" id="lookup-form">
+    <label class="sr-only" for="certificate_no">證書編號</label>
+    <input
+      type="text"
+      id="certificate_no"
+      name="certificate_no"
+      placeholder="scaict-staff-11401"
+      autocomplete="off"
+      autocapitalize="off"
+      spellcheck="false"
+      autofocus={autofocus}
+      required
+    />
+    <button type="submit">查驗</button>
+  </form>
+  <p class="lookup-hint">
+    也可以直接貼上證書上的查驗網址，或掃描證書右下角的 QR Code。
+  </p>
+</div>
+
+<style>
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+</style>
+
+<script>
+  const form = document.getElementById('lookup-form');
+
+  form?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const input = document.getElementById(
+      'certificate_no',
+    ) as HTMLInputElement | null;
+    if (!input) return;
+
+    // 允許使用者直接貼上完整查驗網址，而不只是編號本身。
+    const value = input.value
+      .trim()
+      .replace(/^https?:\/\/[^/]+\//i, '')
+      .replace(/^\/+|\/+$/g, '')
+      .toLowerCase();
+
+    if (value) {
+      window.location.href = `/${encodeURIComponent(value)}/`;
+    }
+  });
+</script>
