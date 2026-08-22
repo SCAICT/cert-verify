@@ -12,6 +12,51 @@ export interface RawSheetRow {
   remark: string;
 }
 
+const MAX_ATTEMPTS = 4;
+
+/** 設定類錯誤（憑證、試算表不存在等），重試沒有意義，直接讓建置失敗。 */
+class RegistryConfigError extends Error {}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Sheets API 偶爾會回 429 或 5xx（例如 503 Service Unavailable），
+ * 每 6 小時的排程重建撞上就會讓整個 workflow 失敗，因此對這類暫時性錯誤退避重試。
+ */
+async function fetchRegistry(url: string, token: string): Promise<Response> {
+  let lastError: Error = new Error('[cert-verify] 讀取 Google 試算表失敗');
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (res.ok) return res;
+
+      const message = `[cert-verify] 讀取 Google 試算表失敗：${res.status} ${res.statusText}`;
+      if (res.status < 500 && res.status !== 429) {
+        throw new RegistryConfigError(message);
+      }
+      lastError = new Error(message);
+    } catch (error) {
+      if (error instanceof RegistryConfigError) throw error;
+      // 其餘（DNS、連線中斷、逾時）一律視為暫時性問題。
+      lastError = error as Error;
+    }
+
+    if (attempt < MAX_ATTEMPTS) {
+      const delay = 2 ** (attempt - 1) * 1000;
+      console.warn(
+        `${lastError.message}，${delay / 1000} 秒後重試（第 ${attempt + 1}/${MAX_ATTEMPTS} 次）。`,
+      );
+      await sleep(delay);
+    }
+  }
+
+  throw lastError;
+}
+
 /**
  * 讀取 Google 試算表登記簿原始資料列。
  * 未設定 GOOGLE_SHEET_ID / GOOGLE_SERVICE_ACCOUNT_KEY 時（例如本機開發），
@@ -43,15 +88,7 @@ export async function fetchRegistryRows(): Promise<RawSheetRow[]> {
 
   const { token } = await auth.getAccessToken();
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}`;
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!res.ok) {
-    throw new Error(
-      `[cert-verify] 讀取 Google 試算表失敗：${res.status} ${res.statusText}`,
-    );
-  }
+  const res = await fetchRegistry(url, token ?? '');
 
   const data = (await res.json()) as { values?: string[][] };
   const rows = data.values ?? [];
