@@ -1,0 +1,48 @@
+---
+
+---
+
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SCAICT 證書查驗</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main>
+      <section class="card">
+        <h1>SCAICT 證書查驗</h1>
+        <p>請輸入證書編號進行查驗（例：scaict-staff-11401）</p>
+        <form id="lookup-form">
+          <input
+            type="text"
+            id="certificate_no"
+            name="certificate_no"
+            placeholder="scaict-staff-11401"
+            autocomplete="off"
+            required
+          />
+          <button type="submit">查驗</button>
+        </form>
+      </section>
+      <p class="footer-note">
+        <a href="https://scaict.org">回到 SCAICT 官網</a>
+      </p>
+    </main>
+    <script>
+      const form = document.getElementById('lookup-form');
+      form?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        const input = document.getElementById(
+          'certificate_no',
+        ) as HTMLInputElement;
+        const value = input.value.trim().toLowerCase();
+        if (value) {
+          window.location.href = `/${encodeURIComponent(value)}/`;
+        }
+      });
+    </script>
+  </body>
+</html>

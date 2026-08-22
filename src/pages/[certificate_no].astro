@@ -1,0 +1,64 @@
+---
+import { loadCertificates } from '../lib/certificates';
+import { typeCodeLabel } from '../lib/typeCodes';
+import type { CertificateRecord } from '../lib/types';
+
+export async function getStaticPaths() {
+  const records = await loadCertificates();
+  return records.map((record) => ({
+    params: { certificate_no: record.certificate_no },
+    props: { record },
+  }));
+}
+
+interface Props {
+  record: CertificateRecord;
+}
+
+const { record } = Astro.props as Props;
+
+const STATUS_LABEL: Record<CertificateRecord['status'], string> = {
+  valid: '有效',
+  void: '已作廢',
+  reissued: '已補發（請查詢最新編號）',
+};
+---
+
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>證書查驗 | {record.certificate_no}</title>
+    <meta name="robots" content="noindex" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main>
+      <section class={`card status-${record.status}`}>
+        <h1>{record.certificate_no}</h1>
+        <p class="status-badge">{STATUS_LABEL[record.status]}</p>
+        <dl>
+          <dt>類別</dt>
+          <dd>{typeCodeLabel(record.type_code)}</dd>
+          <dt>發證日期</dt>
+          <dd>{record.issued_date}</dd>
+          <dt>持有人</dt>
+          <dd>{record.holder_name_masked}</dd>
+        </dl>
+        {
+          record.reissued_to && (
+            <p class="reissue-note">
+              此證書已補發，最新有效編號：
+              <a href={`/${record.reissued_to}/`}>{record.reissued_to}</a>
+            </p>
+          )
+        }
+      </section>
+      <p class="footer-note">
+        本查驗結果由 SCAICT 中部高中電資社團聯合會議提供 ·
+        <a href="https://scaict.org">回到 SCAICT 官網</a>
+      </p>
+    </main>
+  </body>
+</html>
