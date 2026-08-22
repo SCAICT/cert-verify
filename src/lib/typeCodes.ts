@@ -1,6 +1,6 @@
 // 對應 SCAICT 證書標準附錄 A。新增類別碼時請同步更新此表；
 // 未登錄的代碼會直接顯示原始代碼字串，不會壞掉。
-const TYPE_CODE_LABELS: Record<string, string> = {
+export const TYPE_CODE_LABELS: Record<string, string> = {
   staff: '工作人員 / 志工服務證明',
   complete: '結業證書',
   attend: '參與證明',

@@ -1,7 +1,8 @@
 import type { RawSheetRow } from './sheets';
 
 // 僅供本機開發／建置測試使用（未設定 GOOGLE_SHEET_ID 時的 fallback）。
-// 內容取自證書標準附錄 B 的範例登記簿。
+// 主要內容取自證書標準附錄 B 的範例登記簿，另外補上一組補發案例
+// （-r1 後綴），讓 valid / void / reissued 三種狀態與補發連結邏輯都有樣本可測。
 export const SAMPLE_ROWS: RawSheetRow[] = [
   {
     certificate_no: 'scaict-staff-11401',
@@ -46,5 +47,27 @@ export const SAMPLE_ROWS: RawSheetRow[] = [
     issued_date: '2026-08-22',
     status: 'valid',
     remark: '',
+  },
+  {
+    certificate_no: 'scaict-complete-11401',
+    type_code: 'complete',
+    roc_year: '114',
+    serial: '01',
+    holder_name: '林大同',
+    activity_name: '暑期程式設計工作坊',
+    issued_date: '2026-07-01',
+    status: 'reissued',
+    remark: '姓名誤植，已補發 -r1',
+  },
+  {
+    certificate_no: 'scaict-complete-11401-r1',
+    type_code: 'complete',
+    roc_year: '114',
+    serial: '01',
+    holder_name: '林大同',
+    activity_name: '暑期程式設計工作坊',
+    issued_date: '2026-07-15',
+    status: 'valid',
+    remark: '補發自 scaict-complete-11401',
   },
 ];
