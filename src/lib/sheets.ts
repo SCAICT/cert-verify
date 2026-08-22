@@ -20,7 +20,7 @@ export interface RawSheetRow {
 export async function fetchRegistryRows(): Promise<RawSheetRow[]> {
   const sheetId = process.env.GOOGLE_SHEET_ID;
   const keyJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  const range = process.env.GOOGLE_SHEET_RANGE ?? '登記簿!A:I';
+  const range = process.env.GOOGLE_SHEET_RANGE || '登記簿!A:I';
 
   if (!sheetId || !keyJson) {
     console.warn(
