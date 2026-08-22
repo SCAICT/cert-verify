@@ -393,10 +393,6 @@ main {
   color: var(--ink);
 }
 
-.lookup input::placeholder {
-  color: var(--ink-3);
-}
-
 .lookup input:focus {
   outline: none;
 }
