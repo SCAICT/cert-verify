@@ -1,7 +1,9 @@
 ---
+import Base from '../layouts/Base.astro';
+import Seal from '../components/Seal.astro';
 import { loadCertificates } from '../lib/certificates';
 import { typeCodeLabel } from '../lib/typeCodes';
-import type { CertificateRecord } from '../lib/types';
+import type { CertificateRecord, CertificateStatus } from '../lib/types';
 
 export async function getStaticPaths() {
   const records = await loadCertificates();
@@ -17,48 +19,75 @@ interface Props {
 
 const { record } = Astro.props as Props;
 
-const STATUS_LABEL: Record<CertificateRecord['status'], string> = {
-  valid: '有效',
-  void: '已作廢',
-  reissued: '已補發（請查詢最新編號）',
+const VERDICT: Record<CertificateStatus, { title: string; note: string }> = {
+  valid: {
+    title: '證書有效',
+    note: '此編號已登錄於 SCAICT 官方證書登記簿。',
+  },
+  void: {
+    title: '證書已作廢',
+    note: '此編號曾經核發，但已由 SCAICT 註銷，不具效力。',
+  },
+  reissued: {
+    title: '證書已補發',
+    note: '此編號已停用，請改以補發後的最新編號查驗。',
+  },
 };
+
+const verdict = VERDICT[record.status];
 ---
 
-<!doctype html>
-<html lang="zh-Hant">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>證書查驗 | {record.certificate_no}</title>
-    <meta name="robots" content="noindex" />
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <main>
-      <section class={`card status-${record.status}`}>
-        <h1>{record.certificate_no}</h1>
-        <p class="status-badge">{STATUS_LABEL[record.status]}</p>
-        <dl>
-          <dt>類別</dt>
-          <dd>{typeCodeLabel(record.type_code)}</dd>
-          <dt>發證日期</dt>
-          <dd>{record.issued_date}</dd>
+<Base title={`${verdict.title} · ${record.certificate_no}`} noindex>
+  <article class:list={['cert', `cert--${record.status}`]}>
+    <div class="cert__band">
+      <Seal status={record.status} class="cert__seal" />
+      <div class="cert__verdict">
+        <h1>{verdict.title}</h1>
+        <p>{verdict.note}</p>
+      </div>
+    </div>
+
+    <div class="cert__body">
+      <div class="cert__no">
+        <span class="label">Certificate No.</span>
+        <strong>{record.certificate_no}</strong>
+      </div>
+
+      <dl class="facts">
+        <div>
           <dt>持有人</dt>
-          <dd>{record.holder_name_masked}</dd>
-        </dl>
-        {
-          record.reissued_to && (
-            <p class="reissue-note">
-              此證書已補發，最新有效編號：
-              <a href={`/${record.reissued_to}/`}>{record.reissued_to}</a>
-            </p>
-          )
-        }
-      </section>
-      <p class="footer-note">
-        本查驗結果由 SCAICT 中部高中電資社團聯合會議提供 ·
-        <a href="https://scaict.org">回到 SCAICT 官網</a>
-      </p>
-    </main>
-  </body>
-</html>
+          <dd class="name">{record.holder_name_masked}</dd>
+        </div>
+        <div>
+          <dt>證書類別</dt>
+          <dd>{typeCodeLabel(record.type_code)}</dd>
+        </div>
+        <div>
+          <dt>發證日期</dt>
+          <dd class="mono">{record.issued_date}</dd>
+        </div>
+        <div>
+          <dt>發證年度</dt>
+          <dd class="mono">民國 {record.roc_year} 年</dd>
+        </div>
+      </dl>
+
+      {
+        record.reissued_to && (
+          <p class="callout">
+            <strong>已補發新證書。</strong>
+            最新有效編號為{' '}
+            <a href={`/${record.reissued_to}/`}>{record.reissued_to}</a>
+            ，請以該編號為準。
+          </p>
+        )
+      }
+    </div>
+  </article>
+
+  <a class="ghost-btn" href="/">查驗其他證書</a>
+
+  <p class="note">
+    持有人姓名依個資保護原則遮罩呈現。如對查驗結果有疑義，請聯繫 SCAICT 行政組。
+  </p>
+</Base>

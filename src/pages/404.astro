@@ -1,22 +1,23 @@
 ---
-
+import Base from '../layouts/Base.astro';
+import Seal from '../components/Seal.astro';
+import LookupForm from '../components/LookupForm.astro';
 ---
 
-<!doctype html>
-<html lang="zh-Hant">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>查無此證書</title>
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <main>
-      <section class="card">
-        <h1>查無此證書編號</h1>
-        <p>請確認編號輸入正確，或聯絡 SCAICT 行政組確認。</p>
-        <p><a href="/">回到查驗首頁</a></p>
-      </section>
-    </main>
-  </body>
-</html>
+<Base title="查無此證書編號 · SCAICT 證書查驗" noindex>
+  <section class="empty">
+    <Seal status="unknown" size={64} class="empty__seal" />
+    <h1>查無此證書編號</h1>
+    <p>
+      這個編號沒有出現在 SCAICT 證書登記簿中。請確認編號是否輸入正確，
+      或再試一次。
+    </p>
+  </section>
+
+  <LookupForm />
+
+  <p class="note">
+    若編號確實印在證書上卻查詢不到，可能是登記簿尚未同步，請聯繫 SCAICT
+    行政組協助確認。
+  </p>
+</Base>
