@@ -6,6 +6,8 @@ export const TYPE_CODE_LABELS: Record<string, string> = {
   attend: '參與證明',
   award: '獲獎證書',
   thanks: '感謝狀',
+  // 「感」是證書標準頒布前的舊編號簡寫（如 scaict_感_1），不溯及既往，仍屬有效。
+  感: '感謝狀',
   member: '任職證明',
 };
 
