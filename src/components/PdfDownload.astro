@@ -1,0 +1,237 @@
+---
+interface Props {
+  certificateNo: string;
+  downloadUrl: string;
+}
+
+const { certificateNo, downloadUrl } = Astro.props;
+---
+
+<section class="download" aria-labelledby="pdf-download-heading">
+  <h2 id="pdf-download-heading">下載 PDF 電子檔</h2>
+  <p id="pdf-download-hint">請輸入核發證書時提供的下載密碼。</p>
+  <form
+    id="pdf-download-form"
+    method="post"
+    data-download-url={downloadUrl}
+    data-certificate-no={certificateNo}
+  >
+    <fieldset disabled>
+      <label for="pdf-password">下載密碼</label>
+      <div class="lookup">
+        <input
+          id="pdf-password"
+          type="password"
+          autocomplete="current-password"
+          autocapitalize="off"
+          spellcheck="false"
+          aria-describedby="pdf-download-hint pdf-download-status"
+          required
+        />
+        <button type="submit">下載 PDF</button>
+      </div>
+      <label class="download__toggle">
+        <input id="pdf-show-password" type="checkbox" />
+        顯示密碼
+      </label>
+    </fieldset>
+    <p
+      id="pdf-download-status"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+    </p>
+    <a id="pdf-download-link" hidden>若未自動下載，請點此下載 PDF</a>
+  </form>
+  <noscript><p>請啟用 JavaScript，以輸入密碼並下載電子檔。</p></noscript>
+</section>
+
+<style>
+  .download {
+    padding: 1.5rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 1.125rem;
+  }
+
+  p {
+    margin: 0.5rem 0 0;
+    color: var(--ink-2);
+    font-size: 0.875rem;
+  }
+
+  fieldset {
+    min-width: 0;
+    margin: 1rem 0 0;
+    padding: 0;
+    border: 0;
+  }
+
+  label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+
+  .lookup {
+    box-shadow: none;
+  }
+
+  button:disabled {
+    cursor: wait;
+    opacity: 0.6;
+  }
+
+  button:focus-visible,
+  a:focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 3px;
+  }
+
+  .download__toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: fit-content;
+    margin: 0.75rem 0 0;
+    color: var(--ink-2);
+    font-weight: 400;
+    cursor: pointer;
+  }
+
+  .download__toggle input {
+    margin: 0;
+    accent-color: var(--ink);
+  }
+
+  #pdf-download-status {
+    min-height: 1.4em;
+  }
+
+  a {
+    font-size: 0.875rem;
+  }
+
+  @media print {
+    .download {
+      display: none;
+    }
+  }
+</style>
+
+<script>
+  import { decryptCertificatePdf, PdfPasswordError } from '../lib/pdf';
+
+  const form = document.querySelector<HTMLFormElement>('#pdf-download-form');
+  const input = document.querySelector<HTMLInputElement>('#pdf-password');
+  const toggle = document.querySelector<HTMLInputElement>('#pdf-show-password');
+  const status = document.querySelector<HTMLElement>('#pdf-download-status');
+  const link = document.querySelector<HTMLAnchorElement>('#pdf-download-link');
+  const fieldset = form?.querySelector('fieldset');
+  const button = form?.querySelector('button');
+
+  if (form && input && toggle && status && link && fieldset && button) {
+    const downloadUrl = form.dataset.downloadUrl!;
+    const certificateNo = form.dataset.certificateNo!;
+    let objectUrl: string | undefined;
+    let busy = false;
+
+    function releaseDownload() {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      objectUrl = undefined;
+      link!.hidden = true;
+      link!.removeAttribute('href');
+    }
+
+    if (window.crypto?.subtle) {
+      fieldset.disabled = false;
+    } else {
+      status.textContent =
+        '請使用支援加密功能的新版瀏覽器，並透過 HTTPS 開啟網站。';
+    }
+
+    toggle.addEventListener('change', () => {
+      input.type = toggle.checked ? 'text' : 'password';
+    });
+
+    input.addEventListener('input', () => {
+      input.removeAttribute('aria-invalid');
+      if (!busy) status.textContent = '';
+    });
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (busy || !form.reportValidity()) return;
+      busy = true;
+      fieldset.disabled = true;
+      form.setAttribute('aria-busy', 'true');
+      input.removeAttribute('aria-invalid');
+      button.textContent = '處理中…';
+      status.textContent = '正在準備電子檔…';
+      releaseDownload();
+
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 60_000);
+      let failureMessage = '下載失敗，請檢查網路連線後再試。';
+      let passwordError = false;
+      try {
+        const response = await fetch(downloadUrl, {
+          credentials: 'omit',
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          failureMessage = '電子檔暫時無法下載，請重新整理頁面或稍後再試。';
+          throw new Error();
+        }
+        const encrypted = await response.arrayBuffer();
+        status.textContent = '正在驗證密碼…';
+        failureMessage = '電子檔無法讀取，請重新整理頁面後再試。';
+        const pdf = await decryptCertificatePdf(
+          encrypted,
+          input.value,
+          certificateNo,
+        );
+
+        objectUrl = URL.createObjectURL(
+          new Blob([pdf], { type: 'application/pdf' }),
+        );
+        link.href = objectUrl;
+        link.download = `${certificateNo}.pdf`;
+        link.hidden = false;
+        link.click();
+        input.value = '';
+        input.type = 'password';
+        toggle.checked = false;
+        status.textContent = '密碼正確，已開始下載 PDF。';
+      } catch (error) {
+        passwordError = error instanceof PdfPasswordError;
+        status.textContent =
+          error instanceof PdfPasswordError ? error.message : failureMessage;
+        if (passwordError) input.setAttribute('aria-invalid', 'true');
+      } finally {
+        window.clearTimeout(timeout);
+        busy = false;
+        fieldset.disabled = false;
+        form.removeAttribute('aria-busy');
+        button.textContent = '下載 PDF';
+        if (passwordError) {
+          input.focus();
+          input.select();
+        }
+      }
+    });
+
+    window.addEventListener('pagehide', () => {
+      input.value = '';
+      releaseDownload();
+    });
+  }
+</script>

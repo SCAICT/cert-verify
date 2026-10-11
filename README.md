@@ -6,6 +6,9 @@
 即可查詢該證書的類別、發證日期、狀態（有效／已作廢／已補發），並以遮罩姓名
 （如「中○喵」）呈現持有人，不會顯示完整姓名。
 
+有提供電子檔的有效證書，查驗頁另有「下載 PDF 電子檔」區塊。
+持有人輸入核發時收到的專屬密碼，即可下載該張證書的 PDF。
+
 ## 架構
 
 - **Astro（`output: 'static'`）**：建置時透過 `getStaticPaths()` 依登記簿每一列
@@ -18,6 +21,61 @@
 - **部署：GitHub Pages（本 repo 自己的 Pages，非 SCAICT.github.io）**，透過
   `.github/workflows/deploy.yml` 建置後部署，並用 `public/CNAME` 指定
   `verify.scaict.org` 這個自訂網域。
+- **電子檔：Google Drive → 建置時加密 → 瀏覽器解密**：Service Account
+  讀取私有 PDF 後，使用每張證書的密碼加密為 `/downloads/{certificate_no}.bin`。
+  網站只發布密文；Drive 檔案 ID、密碼、原始 PDF 都不會寫入公開建置產物。
+  持有人輸入的密碼只用於瀏覽器中的解密，不會傳送到 Google 或網站伺服器。
+
+## 設定 PDF 密碼下載
+
+### 1. Google Drive
+
+1. 在 Service Account 所屬的 Google Cloud 專案啟用 **Google Drive API**。
+2. 上傳已製作好的 PDF（每個檔案最多 20 MiB）。
+3. 將 PDF 或所屬資料夾分享給現有 Service Account 的 `client_email`，權限設為
+   **檢視者**，並保留下載權限。一般存取權維持「受限制」。
+4. 從分享網址取得檔案 ID，例如
+   `https://drive.google.com/file/d/檔案ID/view` 中的 `檔案ID`。
+
+沿用現有的 `GOOGLE_SERVICE_ACCOUNT_KEY`，不需要新增另一組金鑰。
+支援一般雲端硬碟及共用雲端硬碟中的 PDF；Google 文件或捷徑請先轉成 PDF 上傳。
+
+### 2. Google 試算表
+
+在登記簿原本 A～I 欄後新增兩欄，第一列標題必須使用以下名稱：
+
+| 欄位 | 標題                | 內容                                       |
+| ---- | ------------------- | ------------------------------------------ |
+| J    | `pdf_file_id`       | 該張證書的 Google Drive 檔案 ID（只填 ID） |
+| K    | `download_password` | 該張證書的下載密碼                         |
+
+- 密碼欄請設為「純文字」。每組至少 12 個字元（不計頭尾空白），建議使用
+  16 個以上的隨機英數字元，並個別通知持有人。解密時會精確比對，包含大小寫及空白。
+- 兩欄都留空代表不提供電子檔；只填一欄、密碼太短、無法讀取 PDF 或檔案格式錯誤，
+  都會讓建置失敗，錯誤訊息會指出證書編號。
+- 只有 `status` 為 `valid`（或沿用原有規則留空視為有效）的證書會產生電子檔。
+  `void`、`reissued` 不會讀取或發布 PDF；補發檔案請填在新編號的資料列。
+
+預設讀取範圍已擴大為 `登記簿!A:K`。**如果 GitHub Actions 的 Repository variable
+`GOOGLE_SHEET_RANGE` 已設為 `登記簿!A:I`，請改成 `登記簿!A:K`**
+（工作表名稱依實際設定）。舊試算表未新增欄位時仍可正常查驗。
+
+### 3. 建置與使用
+
+更新後手動執行 GitHub Actions 的 `Build and deploy verify site`，或等待排程重建。
+部署完成後，開啟該張證書的查驗頁，輸入密碼並按「下載 PDF」，檔名為
+`{certificate_no}.pdf`。瀏覽器需支援 Web Crypto，網站需使用 HTTPS
+（本機 `localhost` 也可）。
+
+### 加密方式與更新
+
+使用 Web Crypto 的 **PBKDF2-SHA-256（600,000 次）與 AES-256-GCM**。
+每次加密使用隨機 salt 與 IV，並將證書編號納入驗證，防止不同證書的檔案被調換。
+
+這是靜態加密下載：任何人都能取得 `.bin` 密文，密碼強度決定離線猜測的難度，
+因此請使用獨立的隨機密碼，不要使用生日或證書編號。
+更換密碼、PDF、作廢狀態或移除下載設定，都要重新建置部署才會生效；
+已被保存的舊密文仍可用舊密碼解密，已下載的 PDF 也無法收回。
 
 ## 重新建置時機
 
@@ -31,7 +89,23 @@
 
 ```sh
 pnpm install
-pnpm dev       # http://localhost:4321
+pnpm dev --background # http://localhost:4321
 pnpm build     # 產出 ./dist
 pnpm preview   # 本機預覽建置結果
+pnpm check     # Astro / TypeScript 檢查
+pnpm test      # 加解密、下載條件與實際靜態建置測試
 ```
+
+背景開發伺服器可用 `pnpm astro dev status`、`pnpm astro dev logs`、
+`pnpm astro dev stop` 管理。修改試算表後請重新啟動開發伺服器，讓登記簿重新載入。
+
+建置端從 `process.env` 讀取 `GOOGLE_SHEET_ID`、`GOOGLE_SERVICE_ACCOUNT_KEY`
+與選填的 `GOOGLE_SHEET_RANGE`。若將這些值放在本機 `.env`，可用 Node 載入後執行：
+
+```sh
+node --env-file=.env ./node_modules/astro/bin/astro.mjs build
+node --env-file=.env ./node_modules/astro/bin/astro.mjs dev --background
+```
+
+未提供 Google 憑證時使用原有範例資料，不會提供真實 PDF。
+自動測試使用模擬的 Google 回應與測試 PDF，不會存取正式試算表或雲端硬碟。

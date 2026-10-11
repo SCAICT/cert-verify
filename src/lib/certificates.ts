@@ -1,6 +1,41 @@
-import { fetchRegistryRows } from './sheets';
-import { maskName } from './mask';
+import { fetchRegistryRows, type RawSheetRow } from './sheets.ts';
+import { maskName } from './mask.ts';
+import { fetchDrivePdf } from './drive.ts';
+import { encryptCertificatePdf, validateDownloadPassword } from './pdf.ts';
 import type { CertificateRecord, CertificateStatus } from './types';
+
+interface CertificateDownload {
+  certificate_no: string;
+  encrypted: ArrayBuffer;
+}
+
+interface CertificateRegistry {
+  records: CertificateRecord[];
+  downloads: CertificateDownload[];
+}
+
+// 查驗頁與靜態下載端點共用同一次讀取，僅快取遮罩資料與密文。
+let registryPromise: Promise<CertificateRegistry> | undefined;
+
+function loadRegistry(): Promise<CertificateRegistry> {
+  registryPromise ??= fetchRegistryRows()
+    .then((rows) => buildCertificateRegistry(rows))
+    .catch((error) => {
+      registryPromise = undefined;
+      throw error;
+    });
+  return registryPromise;
+}
+
+export async function loadCertificates(): Promise<CertificateRecord[]> {
+  return (await loadRegistry()).records;
+}
+
+export async function loadCertificateDownloads(): Promise<
+  CertificateDownload[]
+> {
+  return (await loadRegistry()).downloads;
+}
 
 function baseCertificateNo(certificateNo: string): string {
   return certificateNo.replace(/-r\d+$/, '');
@@ -12,12 +47,13 @@ function reissueIndex(certificateNo: string): number {
 }
 
 /**
- * 讀取登記簿、去除敏感欄位（activity_name / remark / serial / 完整姓名）並產生
- * 公開查驗頁面可用的資料。未遮罩姓名只在這個函式內短暫存在，回傳值只包含遮罩後結果。
+ * 去除敏感欄位並加密 PDF。回傳值只包含公開查驗資料與密文，
+ * 完整姓名、Drive ID、下載密碼與原始 PDF 都不會傳給頁面或端點。
  */
-export async function loadCertificates(): Promise<CertificateRecord[]> {
-  const rows = await fetchRegistryRows();
-
+export async function buildCertificateRegistry(
+  rows: RawSheetRow[],
+  readPdf: (fileId: string) => Promise<ArrayBuffer> = fetchDrivePdf,
+): Promise<CertificateRegistry> {
   const records: CertificateRecord[] = rows.map((row) => ({
     certificate_no: row.certificate_no,
     type_code: row.type_code,
@@ -49,5 +85,31 @@ export async function loadCertificates(): Promise<CertificateRecord[]> {
     }
   }
 
-  return records;
+  const downloads: CertificateDownload[] = [];
+  for (const [index, record] of records.entries()) {
+    if (record.status !== 'valid') continue;
+    const row = rows[index];
+    const fileId = row.pdf_file_id?.trim() ?? '';
+    const password = row.download_password ?? '';
+    if (!fileId && !password) continue;
+
+    try {
+      if (!fileId || !password) {
+        throw new Error('pdf_file_id 與 download_password 必須一起填寫');
+      }
+      validateDownloadPassword(password);
+      const encrypted = await encryptCertificatePdf(
+        await readPdf(fileId),
+        password,
+        record.certificate_no,
+      );
+      record.download_url = `/downloads/${encodeURIComponent(record.certificate_no)}.bin`;
+      downloads.push({ certificate_no: record.certificate_no, encrypted });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'PDF 處理失敗';
+      throw new Error(`[cert-verify] ${record.certificate_no}：${message}`);
+    }
+  }
+
+  return { records, downloads };
 }

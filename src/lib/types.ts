@@ -8,4 +8,5 @@ export interface CertificateRecord {
   status: CertificateStatus;
   holder_name_masked: string;
   reissued_to?: string;
+  download_url?: string;
 }

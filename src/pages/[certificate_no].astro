@@ -1,6 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
 import Seal from '../components/Seal.astro';
+import PdfDownload from '../components/PdfDownload.astro';
 import { loadCertificates } from '../lib/certificates';
 import { typeCodeLabel } from '../lib/typeCodes';
 import type { CertificateRecord, CertificateStatus } from '../lib/types';
@@ -84,6 +85,15 @@ const verdict = VERDICT[record.status];
       }
     </div>
   </article>
+
+  {
+    record.status === 'valid' && record.download_url && (
+      <PdfDownload
+        certificateNo={record.certificate_no}
+        downloadUrl={record.download_url}
+      />
+    )
+  }
 
   <a class="ghost-btn" href="/">查驗其他證書</a>
 
