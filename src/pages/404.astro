@@ -21,3 +21,17 @@ import LookupForm from '../components/LookupForm.astro';
     行政組協助確認。
   </p>
 </Base>
+
+<script>
+  import { resolveCertificateUrl } from '../lib/lookup';
+
+  // 已印製的舊 QR Code 由 404 頁解析後轉到新的不透明網址。
+  const legacy = window.location.pathname.replace(/^\/+|\/+$/g, '');
+  if (/^scaict[-_]/i.test(legacy) && !legacy.includes('/')) {
+    resolveCertificateUrl(legacy)
+      .then((url) => {
+        if (url) window.location.replace(url);
+      })
+      .catch(() => {});
+  }
+</script>

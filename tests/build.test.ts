@@ -7,6 +7,8 @@ import { test } from 'node:test';
 import { build } from 'astro';
 import { JWT } from 'google-auth-library';
 import { decryptCertificatePdf } from '../src/lib/pdf.ts';
+import { certificateRouteId } from '../src/lib/routes.ts';
+import { certificateLookupHash } from '../src/lib/lookup.ts';
 import {
   PASSWORD,
   PDF,
@@ -24,6 +26,7 @@ test('實際靜態建置：只有有效證書提供加密下載，所有產物�
       'GOOGLE_SHEET_ID',
       'GOOGLE_SERVICE_ACCOUNT_KEY',
       'GOOGLE_SHEET_RANGE',
+      'CERTIFICATE_URL_SECRET',
     ]) {
       if (previousEnv[name] === undefined) delete process.env[name];
       else process.env[name] = previousEnv[name];
@@ -35,6 +38,8 @@ test('實際靜態建置：只有有效證書提供加密下載，所有產物�
     private_key: 'private-key-test-only',
   });
   process.env.GOOGLE_SHEET_RANGE = '登記簿!A:K';
+  const routeSecret = 'test-url-secret-do-not-publish-1234567890';
+  process.env.CERTIFICATE_URL_SECRET = routeSecret;
   t.mock.method(JWT.prototype, 'getAccessToken', async () => ({
     token: 'test-token',
   }));
@@ -50,6 +55,12 @@ test('實際靜態建置：只有有效證書提供加密下載，所有產物�
     },
     { ...ROW, certificate_no: 'scaict-staff-11503', status: 'void' },
     { ...ROW, certificate_no: 'scaict-staff-11504', status: 'reissued' },
+    {
+      ...ROW,
+      certificate_no: 'scaict-staff-11504-r1',
+      pdf_file_id: '',
+      download_password: '',
+    },
   ];
   const headers = Object.keys(ROW) as (keyof typeof ROW)[];
   let driveRequests = 0;
@@ -95,7 +106,11 @@ test('實際靜態建置：只有有效證書提供加密下載，所有產物�
     false,
   );
   const downloaded = await readFile(
-    join(outDir, 'downloads', `${ROW.certificate_no}.bin`),
+    join(
+      outDir,
+      'downloads',
+      `${certificateRouteId(ROW.certificate_no, routeSecret)}.bin`,
+    ),
   );
   assert.deepEqual(
     await decryptCertificatePdf(
@@ -107,20 +122,29 @@ test('實際靜態建置：只有有效證書提供加密下載，所有產物�
   );
 
   for (const row of rows) {
-    const html = await readFile(
-      join(outDir, row.certificate_no, 'index.html'),
-      'utf8',
+    const routeId = certificateRouteId(row.certificate_no, routeSecret);
+    assert.equal(
+      files.some((file) => file.includes(row.certificate_no)),
+      false,
     );
+    const lookup = JSON.parse(
+      await readFile(
+        join(
+          outDir,
+          'lookup',
+          `${await certificateLookupHash(row.certificate_no)}.json`,
+        ),
+        'utf8',
+      ),
+    );
+    assert.deepEqual(lookup, { url: `/${routeId}/` });
+    const html = await readFile(join(outDir, routeId, 'index.html'), 'utf8');
     const available = row.status === 'valid' && Boolean(row.pdf_file_id);
     assert.equal(html.includes('id="pdf-download-form"'), available);
     if (available) {
-      assert.ok(
-        html.includes(
-          `/downloads/${encodeURIComponent(row.certificate_no)}.bin`,
-        ),
-      );
+      assert.ok(html.includes(`/downloads/${routeId}.bin`));
       const encrypted = await readFile(
-        join(outDir, 'downloads', `${row.certificate_no}.bin`),
+        join(outDir, 'downloads', `${routeId}.bin`),
       );
       assert.deepEqual(
         await decryptCertificatePdf(
@@ -130,6 +154,14 @@ test('實際靜態建置：只有有效證書提供加密下載，所有產物�
         ),
         PDF,
       );
+    }
+    if (row.status === 'reissued') {
+      const latestId = certificateRouteId(
+        `${row.certificate_no}-r1`,
+        routeSecret,
+      );
+      assert.ok(html.includes(`href="/${latestId}/"`));
+      assert.equal(html.includes(`href="/${row.certificate_no}-r1/"`), false);
     }
   }
   for (const file of files) {
@@ -141,6 +173,7 @@ test('實際靜態建置：只有有效證書提供加密下載，所有產物�
       PRIVATE_FILE_ID,
       'private-key-test-only',
       'CONFIDENTIAL_PDF_TEST_CONTENT',
+      routeSecret,
     ]) {
       assert.equal(
         contents.includes(secret),

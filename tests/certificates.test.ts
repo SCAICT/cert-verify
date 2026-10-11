@@ -18,7 +18,7 @@ test('只輸出遮罩資料、公開下載路徑與密文', async () => {
   });
   assert.equal(
     result.records[0].download_url,
-    `/downloads/${ROW.certificate_no}.bin`,
+    `/downloads/${result.records[0].route_id}.bin`,
   );
   assert.equal(result.downloads.length, 1);
   assert.deepEqual(
@@ -63,6 +63,10 @@ test('未設定電子檔、已作廢與已補發的證書不讀取或發布 PDF'
     result.records.every((record) => record.download_url === undefined),
   );
   assert.equal(result.records[2].reissued_to, 'scaict-complete-11501-r1');
+  assert.equal(
+    result.records[2].reissued_url,
+    `/${result.records[3].route_id}/`,
+  );
 });
 
 test('不完整下載設定或短密碼會在讀取 Drive 之前讓建置失敗', async () => {

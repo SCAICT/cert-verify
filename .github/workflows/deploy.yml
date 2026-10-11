@@ -52,6 +52,7 @@ jobs:
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           GOOGLE_SHEET_RANGE: ${{ vars.GOOGLE_SHEET_RANGE }}
           GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+          CERTIFICATE_URL_SECRET: ${{ secrets.CERTIFICATE_URL_SECRET }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

@@ -9,7 +9,7 @@ import type { CertificateRecord, CertificateStatus } from '../lib/types';
 export async function getStaticPaths() {
   const records = await loadCertificates();
   return records.map((record) => ({
-    params: { certificate_no: record.certificate_no },
+    params: { route_id: record.route_id },
     props: { record },
   }));
 }
@@ -78,7 +78,7 @@ const verdict = VERDICT[record.status];
           <p class="callout">
             <strong>已補發新證書。</strong>
             最新有效編號為{' '}
-            <a href={`/${record.reissued_to}/`}>{record.reissued_to}</a>
+            <a href={record.reissued_url}>{record.reissued_to}</a>
             ，請以該編號為準。
           </p>
         )

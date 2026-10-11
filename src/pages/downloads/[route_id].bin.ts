@@ -3,8 +3,8 @@ import { loadCertificateDownloads } from '../../lib/certificates';
 
 export async function getStaticPaths() {
   const downloads = await loadCertificateDownloads();
-  return downloads.map(({ certificate_no, encrypted }) => ({
-    params: { certificate_no },
+  return downloads.map(({ route_id, encrypted }) => ({
+    params: { route_id },
     props: { encrypted },
   }));
 }

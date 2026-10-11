@@ -40,24 +40,33 @@ const { autofocus = false } = Astro.props;
 </style>
 
 <script>
+  import { resolveCertificateUrl } from '../lib/lookup';
+
   const form = document.getElementById('lookup-form');
 
-  form?.addEventListener('submit', (event) => {
+  form?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const input = document.getElementById(
       'certificate_no',
     ) as HTMLInputElement | null;
     if (!input) return;
 
-    // 允許使用者直接貼上完整查驗網址，而不只是編號本身。
-    const value = input.value
-      .trim()
-      .replace(/^https?:\/\/[^/]+\//i, '')
-      .replace(/^\/+|\/+$/g, '')
-      .toLowerCase();
-
-    if (value) {
-      window.location.href = `/${encodeURIComponent(value)}/`;
+    input.setCustomValidity('');
+    const button = form?.querySelector('button');
+    if (button) button.disabled = true;
+    try {
+      const url = await resolveCertificateUrl(input.value);
+      window.location.assign(url ?? '/404.html');
+    } catch {
+      input.setCustomValidity('查驗服務暫時無法使用，請稍後再試。');
+      input.reportValidity();
+    } finally {
+      if (button) button.disabled = false;
     }
   });
+  document
+    .getElementById('certificate_no')
+    ?.addEventListener('input', (event) => {
+      (event.target as HTMLInputElement).setCustomValidity('');
+    });
 </script>

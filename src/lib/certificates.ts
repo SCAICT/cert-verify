@@ -3,9 +3,11 @@ import { maskName } from './mask.ts';
 import { fetchDrivePdf } from './drive.ts';
 import { encryptCertificatePdf, validateDownloadPassword } from './pdf.ts';
 import type { CertificateRecord, CertificateStatus } from './types';
+import { certificateRouteId, routeSecret } from './routes.ts';
 
 interface CertificateDownload {
   certificate_no: string;
+  route_id: string;
   encrypted: ArrayBuffer;
 }
 
@@ -53,9 +55,11 @@ function reissueIndex(certificateNo: string): number {
 export async function buildCertificateRegistry(
   rows: RawSheetRow[],
   readPdf: (fileId: string) => Promise<ArrayBuffer> = fetchDrivePdf,
+  secret: string = routeSecret(),
 ): Promise<CertificateRegistry> {
   const records: CertificateRecord[] = rows.map((row) => ({
     certificate_no: row.certificate_no,
+    route_id: certificateRouteId(row.certificate_no, secret),
     type_code: row.type_code,
     roc_year: row.roc_year,
     issued_date: row.issued_date,
@@ -81,6 +85,7 @@ export async function buildCertificateRegistry(
     for (const record of sorted) {
       if (record.status === 'reissued' && record !== latest) {
         record.reissued_to = latest.certificate_no;
+        record.reissued_url = `/${latest.route_id}/`;
       }
     }
   }
@@ -103,8 +108,12 @@ export async function buildCertificateRegistry(
         password,
         record.certificate_no,
       );
-      record.download_url = `/downloads/${encodeURIComponent(record.certificate_no)}.bin`;
-      downloads.push({ certificate_no: record.certificate_no, encrypted });
+      record.download_url = `/downloads/${record.route_id}.bin`;
+      downloads.push({
+        certificate_no: record.certificate_no,
+        route_id: record.route_id,
+        encrypted,
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'PDF 處理失敗';
       throw new Error(`[cert-verify] ${record.certificate_no}：${message}`);

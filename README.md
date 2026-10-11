@@ -2,7 +2,7 @@
 
 依 [SCAICT 證書編號標準規範](https://hackmd.io/@SCAICT/證書標準) 第 14 條建立的證書查驗網站，部署於 `verify.scaict.org`。
 
-輸入或掃描證書上的查驗連結 `https://verify.scaict.org/{certificate_no}/`，
+在首頁輸入證書編號，或掃描證書上的查驗連結 `https://verify.scaict.org/{route_id}/`，
 即可查詢該證書的類別、發證日期、狀態（有效／已作廢／已補發），並以遮罩姓名
 （如「中○喵」）呈現持有人，不會顯示完整姓名。
 
@@ -12,8 +12,8 @@
 ## 架構
 
 - **Astro（`output: 'static'`）**：建置時透過 `getStaticPaths()` 依登記簿每一列
-  資料各自產生一頁純靜態 HTML，網址即為 `/{certificate_no}/`，不需要任何
-  client-side 路由技巧或查詢字串。
+  資料各自產生一頁純靜態 HTML，網址為 `/{route_id}/`，不含明文證書編號。
+  首頁透過編號的 SHA-256 查詢個別靜態索引，再前往對應頁面。
 - **資料來源：Google 試算表**：建置時以 Service Account 直接讀取試算表登記簿
   （對應附錄 B 欄位），在讀到資料的當下就完成姓名遮罩、並捨棄
   `activity_name` / `remark` / `serial` 等不應公開的欄位，未遮罩的完整姓名
@@ -22,9 +22,25 @@
   `.github/workflows/deploy.yml` 建置後部署，並用 `public/CNAME` 指定
   `verify.scaict.org` 這個自訂網域。
 - **電子檔：Google Drive → 建置時加密 → 瀏覽器解密**：Service Account
-  讀取私有 PDF 後，使用每張證書的密碼加密為 `/downloads/{certificate_no}.bin`。
+  讀取私有 PDF 後，使用每張證書的密碼加密為 `/downloads/{route_id}.bin`。
   網站只發布密文；Drive 檔案 ID、密碼、原始 PDF 都不會寫入公開建置產物。
   持有人輸入的密碼只用於瀏覽器中的解密，不會傳送到 Google 或網站伺服器。
+
+## 查驗網址設定
+
+GitHub Actions 的 Repository secret 請新增 **`CERTIFICATE_URL_SECRET`**，
+內容為至少 32 字元的隨機金鑰（建議使用 32 隨機位元組的 64 碼十六進位字串）。
+建置時以 HMAC-SHA-256 將證書編號轉成固定的 64 碼不透明網址代碼，
+金鑰不會發布到網站。同一金鑰與編號在每次重建時都會得到相同網址；
+更換金鑰會改變所有查驗及下載網址，請妥善保存。
+
+首頁接受證書編號及新舊查驗網址。已印製的 `/{certificate_no}/` 舊網址
+會由 404 頁的 JavaScript 轉到新網址，不再發布以證書編號命名的查驗頁。
+新 QR Code 請使用 `/{route_id}/` 網址；查驗頁內容仍會顯示證書編號。
+不透明網址用於隱藏網址中的編號，首頁的編號查驗仍是公開功能；PDF 仍需下載密碼。
+
+未提供 Google 憑證時，範例資料使用固定的本機開發金鑰；正式資料缺少網址金鑰
+或金鑰太短時會讓建置失敗。
 
 ## 設定 PDF 密碼下載
 
@@ -100,7 +116,8 @@ pnpm test      # 加解密、下載條件與實際靜態建置測試
 `pnpm astro dev stop` 管理。修改試算表後請重新啟動開發伺服器，讓登記簿重新載入。
 
 建置端從 `process.env` 讀取 `GOOGLE_SHEET_ID`、`GOOGLE_SERVICE_ACCOUNT_KEY`
-與選填的 `GOOGLE_SHEET_RANGE`。若將這些值放在本機 `.env`，可用 Node 載入後執行：
+與選填的 `GOOGLE_SHEET_RANGE`；使用正式資料時另需 `CERTIFICATE_URL_SECRET`。
+若將這些值放在本機 `.env`，可用 Node 載入後執行：
 
 ```sh
 node --env-file=.env ./node_modules/astro/bin/astro.mjs build
