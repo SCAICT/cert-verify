@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
@@ -18,7 +17,8 @@ import {
 } from './fixtures.ts';
 
 test('實際靜態建置：只有有效證書提供加密下載，所有產物不含私有資料', async (t) => {
-  const outDir = await mkdtemp(join(tmpdir(), 'cert-verify-test-'));
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const outDir = await mkdtemp(join(root, '.cert-verify-test-'));
   t.after(() => rm(outDir, { recursive: true, force: true }));
   const previousEnv = { ...process.env };
   t.after(() => {
@@ -94,7 +94,7 @@ test('實際靜態建置：只有有效證書提供加密下載，所有產物�
   );
 
   await build({
-    root: fileURLToPath(new URL('../', import.meta.url)),
+    root,
     outDir,
     logLevel: 'silent',
   });
